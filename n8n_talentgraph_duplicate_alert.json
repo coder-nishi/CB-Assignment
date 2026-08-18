@@ -1,0 +1,194 @@
+{
+  "name": "TalentGraph Duplicate Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "talentgraph-duplicate-check",
+        "responseMode": "lastNode"
+      },
+      "id": "1",
+      "name": "New Person Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json; return [{json:{name:String(body.name||''),email:String(body.email||''),phone:String(body.phone||''),city:String(body.city||'')}}];"
+      },
+      "id": "2",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT user_id, full_name, primary_email, primary_phone, city FROM users WHERE lower(primary_email)=lower('{{ $json.email }}') OR primary_phone='{{ $json.phone }}' OR lower(full_name)=lower('{{ $json.name }}') LIMIT 20;"
+      },
+      "id": "3",
+      "name": "Check TalentGraph SQLite",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $items().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "4",
+      "name": "Duplicate Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        80,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "alert",
+              "value": "Duplicate candidate found in TalentGraph for {{$json.full_name || 'unknown person'}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "5",
+      "name": "Duplicate Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {status:'duplicate', alert:$json.alert, user_id:$json.user_id} }}"
+      },
+      "id": "6",
+      "name": "Return Duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {status:'new_person', message:'No duplicate found'} }}"
+      },
+      "id": "7",
+      "name": "Return New Person",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "New Person Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Check TalentGraph SQLite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check TalentGraph SQLite": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Found?": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return New Person",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Alert": {
+      "main": [
+        [
+          {
+            "node": "Return Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "322f32b4-3ad1-443e-a108-b125d4ed6df2"
+}
